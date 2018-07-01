@@ -2,7 +2,7 @@ import math
 
 import numpy as np
 
-from src.QLearningAgent import QLearningAgent
+from QLearningAgent import QLearningAgent
 
 
 class DoubleQLearningAgent(QLearningAgent):
@@ -11,6 +11,10 @@ class DoubleQLearningAgent(QLearningAgent):
     EXPLORATION_STOP = 500000
     LAMBDA = - math.log(0.01) / EXPLORATION_STOP
 
+    def remember(self, experience):
+        super().remember(experience)
+        self.steps += 1
+
     def replay(self, replay_length):
         replay_batch = self.get_batch(replay_length)
         xs, ys = self.get_targets(replay_batch)
@@ -18,8 +22,8 @@ class DoubleQLearningAgent(QLearningAgent):
         self.update_epsilon()
 
     def get_targets(self, replay_batch):
-        states = np.array([experience.state[0, :, :, :] for experience in replay_batch])
-        states_ = np.array([experience.next_state[0, :, :, :] for experience in replay_batch])
+        states = np.array([experience.state for experience in replay_batch])
+        states_ = np.array([experience.next_state for experience in replay_batch])
         ys = np.zeros((len(replay_batch), self.action_space))
 
         p = self.model.predict(states)
@@ -38,10 +42,6 @@ class DoubleQLearningAgent(QLearningAgent):
             ys[i] = p[i]
 
         return states, ys
-
-    def remember(self, experience):
-        super().remember(experience)
-        self.steps += 1
 
     def get_batch(self, batch_size):
         return np.random.choice(self.memory, size=batch_size)

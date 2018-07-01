@@ -4,13 +4,12 @@ import gym
 import numpy
 import scipy.misc
 
-from collections import deque
-from src.QLearningAgent import Experience
-from src.weights.PERLearningAgent import PERLearningAgent
+from DoubleQLearningAgent import DoubleQLearningAgent
+from QLearningAgent import QLearningAgent, Experience
 
 EPISODES = 5000
 TARGET_UPDATE_FREQ = 7500
-OBSERVE_LIMIT = 150000
+OBSERVE_LIMIT = 100000
 REPLAY_SIZE = 32
 STATE_STACK_SIZE = 4
 IMAGE_SIZE = 84
@@ -21,8 +20,8 @@ PONG = 'Pong-v0'
 
 
 def process(state):
-    single_channel_state = state[:, :, 0]
-    reshaped_image = scipy.misc.imresize(single_channel_state, (IMAGE_SIZE, IMAGE_SIZE))
+    grayscale_state = numpy.dot(state[..., :3], [0.299, 0.587, .114])
+    reshaped_image = scipy.misc.imresize(grayscale_state, (IMAGE_SIZE, IMAGE_SIZE))
     return numpy.reshape(reshaped_image, (IMAGE_SIZE, IMAGE_SIZE))
 
 
@@ -76,15 +75,15 @@ def use_agent(env, agent):
             state_stack[STATE_STACK_SIZE - 1] = process(next_state)
 
             env.render()
-        state = env.reset()
+        env.reset()
         done = False
 
 
-env = gym.make(PACMAN)
+env = gym.make(PONG)
 input_shape = (STATE_STACK_SIZE, IMAGE_SIZE, IMAGE_SIZE)
-agent = PERLearningAgent(input_shape, env.action_space.n)
-        # DoubleQLearningAgent(input_shape, env.action_space.n)
-        # QLearningAgent(input_shape,env.action_space.n)
+agent = DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
+# PERLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
+# QLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
 
 try:
     train_agent(env, agent)

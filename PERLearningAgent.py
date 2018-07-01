@@ -1,16 +1,16 @@
-from theano.gradient import np
+import numpy as np
 
-from src.SumTree import SumTree
-from src.DoubleQLearningAgent import DoubleQLearningAgent
+from SumTree import SumTree
+from DoubleQLearningAgent import DoubleQLearningAgent
 
 
 class PERLearningAgent(DoubleQLearningAgent):
 
-    def __init__(self, frames_shape, action_shape):
-        DoubleQLearningAgent.__init__(self, frames_shape, action_shape)
+    def __init__(self, frames_shape, action_shape, memory_size):
+        DoubleQLearningAgent.__init__(self, frames_shape, action_shape, 0)
         self.alpha = 0.6
         self.epsilon_positive = 0.01    # epsilon used to avoid not visiting states when p(i)=0
-        self.memory = SumTree(150000)
+        self.memory = SumTree(memory_size)
 
     def remember(self, experience):
         self.memory.add(self.memory.max_p, experience)
