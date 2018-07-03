@@ -2,51 +2,39 @@ import datetime
 
 import gym
 import numpy
-import scipy.misc
 
 from DoubleQLearningAgent import DoubleQLearningAgent
-from QLearningAgent import QLearningAgent, Experience
+from QLearningAgent import Experience
 
-EPISODES = 5000
+EPISODES = 3000
 TARGET_UPDATE_FREQ = 7500
-OBSERVE_LIMIT = 100000
+OBSERVE_LIMIT = 50000
 REPLAY_SIZE = 32
 STATE_STACK_SIZE = 4
 IMAGE_SIZE = 84
 
-PACMAN = 'MsPacman-v0'
+
 CARTPOLE = 'CartPole-v1'
-PONG = 'Pong-v0'
-
-
-def process(state):
-    grayscale_state = numpy.dot(state[..., :3], [0.299, 0.587, .114])
-    reshaped_image = scipy.misc.imresize(grayscale_state, (IMAGE_SIZE, IMAGE_SIZE))
-    return numpy.reshape(reshaped_image, (IMAGE_SIZE, IMAGE_SIZE))
+MOUNTAIN_CLIMBER = 'MountainCar-v0'
 
 
 def train_agent(env, agent):
-    agent.load_agent()
+    # agent.load_agent()
 
     for ep in range(EPISODES):
-        state = process(env.reset())
+        state = env.reset()
 
         done = False
         game_reward = 0
         frames = 0
-        state_stack = numpy.array([state, state, state, state])
 
         while not done:
-            action = agent.act(state_stack)
+            action = agent.act(state)
             next_state, reward, done, _ = env.step(action)
             reward = numpy.clip(reward, -1, 1)
 
-            state = numpy.array(state_stack)
-            state_stack = numpy.roll(state_stack, STATE_STACK_SIZE - 1)
-            state_stack[STATE_STACK_SIZE - 1] = process(next_state)
-            state_ = numpy.array(state_stack)
-
-            agent.remember(Experience(state, action, reward, state_, done))
+            agent.remember(Experience(state, action, reward, next_state, done))
+            state = next_state
 
             if len(agent.memory) >= OBSERVE_LIMIT:
                 agent.replay(REPLAY_SIZE)
@@ -62,32 +50,34 @@ def train_agent(env, agent):
 
 def use_agent(env, agent):
     agent.load_agent()
-    state = process(env.reset())
+    state = env.reset()
     done = False
-    state_stack = numpy.array([state, state, state, state])
 
     for i in range(EPISODES):
         while not done:
-            action = agent.act_best_action(state_stack)
+            action = agent.act_best_action(state)
             next_state, _, done, _ = env.step(action)
-
-            state_stack = numpy.roll(state_stack, STATE_STACK_SIZE - 1)
-            state_stack[STATE_STACK_SIZE - 1] = process(next_state)
-
+            state = next_state
             env.render()
         env.reset()
         done = False
 
 
-env = gym.make(PONG)
-input_shape = (STATE_STACK_SIZE, IMAGE_SIZE, IMAGE_SIZE)
+env = gym.make(CARTPOLE)
+input_shape = env.observation_space.shape
 agent = DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
+
+# Possible learning algorithms:
+# DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
 # PERLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
 # QLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
 
-try:
-    train_agent(env, agent)
-finally:
-    agent.save_agent()
+train = True
 
-# use_agent(env, agent)
+if train:
+    try:
+        train_agent(env, agent)
+    finally:
+        agent.save_agent()
+else:
+    use_agent(env, agent)
