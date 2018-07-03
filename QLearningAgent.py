@@ -1,8 +1,25 @@
+import random
 from collections import deque
 
 import numpy as np
+import tensorflow as tf
 from keras.layers import Conv2D, Flatten, Dense
 from keras.models import Sequential
+from keras import backend as K
+
+HUBER_LOSS_DELTA = 1.0
+
+
+def huber_loss(y_true, y_pred):
+    err = y_true - y_pred
+
+    cond = K.abs(err) < HUBER_LOSS_DELTA
+    L2 = 0.5 * K.square(err)
+    L1 = HUBER_LOSS_DELTA * (K.abs(err) - 0.5 * HUBER_LOSS_DELTA)
+
+    loss = tf.where(cond, L2, L1)
+
+    return K.mean(loss)
 
 
 class Experience:
@@ -18,6 +35,7 @@ class QLearningAgent:
     model_name = 'dqn_weights3.h5'
     discount = 0.99
     epsilon_min = 0.01
+    steps = 0
 
     def __init__(self, frames_shape, action_space, memory_size):
         self.frames_shape = frames_shape
@@ -25,8 +43,8 @@ class QLearningAgent:
         self.epsilon = 1.0
         self.epsilon_decay = 0.995
         self.memory = deque(maxlen=memory_size)
-        self.model = self._build_image_model()
-        self.target = self._build_image_model()
+        self.model = self._build_model()    # self._build_image_model()
+        self.target = self._build_model()   # self._build_image_model()
         self.update_target()
 
     def _build_model(self):
@@ -35,6 +53,7 @@ class QLearningAgent:
         model.add(Dense(32, activation='relu'))
         model.add(Dense(self.action_space, activation='linear'))
         model.compile(loss='mse', optimizer='adam')
+        model.summary()
         return model
 
     def _build_image_model(self):
@@ -46,7 +65,7 @@ class QLearningAgent:
         model.add(Flatten())
         model.add(Dense(512, activation='relu'))
         model.add(Dense(self.action_space, activation='linear'))
-        model.compile(loss='mse', optimizer='rmsprop')
+        model.compile(loss='mse', optimizer='adam')
         return model
 
     def update_target(self):
@@ -65,7 +84,7 @@ class QLearningAgent:
             return best_action
 
     def replay(self, replay_length):
-        replay_batch = np.random.choice(self.memory, size=replay_length)
+        replay_batch = self.get_batch(replay_length)
         xs, ys = [], []
 
         states = np.array([experience.state for experience in replay_batch])
@@ -90,7 +109,15 @@ class QLearningAgent:
         # model training
         self.model.fit(np.array(xs), np.array(ys), batch_size=32, epochs=1, verbose=0)
 
-        # epsilon decay
+        self.update_epsilon()
+        self.steps += 1
+
+    def get_batch(self, batch_size):
+        idxs = [random.randint(0, len(self.memory) - 1) for _ in range(batch_size)]
+        batch = [self.memory[i] for i in idxs]
+        return batch
+
+    def update_epsilon(self):
         if self.epsilon > self.epsilon_min:
             self.epsilon = self.epsilon * self.epsilon_decay
 
