@@ -33,6 +33,7 @@ class Experience:
 
 class QLearningAgent:
     model_name = 'dqn_weights3.h5'
+    target_update_freq = 10000
     discount = 0.99
     epsilon_min = 0.01
     steps = 0
@@ -110,6 +111,9 @@ class QLearningAgent:
 
         self.update_epsilon()
         self.steps += 1
+
+        if self.steps % self.target_update_freq == 0:
+            self.update_target()
 
     def get_batch(self, batch_size):
         idxs = [random.randint(0, len(self.memory) - 1) for _ in range(batch_size)]

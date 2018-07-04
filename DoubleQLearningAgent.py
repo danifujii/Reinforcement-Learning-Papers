@@ -17,6 +17,9 @@ class DoubleQLearningAgent(QLearningAgent):
         self.model.fit(xs, ys, batch_size=32, epochs=1, verbose=0)
         self.update_epsilon()
 
+        if self.steps % self.target_update_freq == 0:
+            self.update_target()
+
     def get_targets(self, replay_batch):
         states = np.array([experience.state for experience in replay_batch])
         states_ = np.array([experience.next_state for experience in replay_batch])

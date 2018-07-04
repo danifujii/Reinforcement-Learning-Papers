@@ -8,7 +8,8 @@ from QLearningAgent import Experience
 
 EPISODES = 3000
 TARGET_UPDATE_FREQ = 7500
-OBSERVE_LIMIT = 50000
+OBSERVE_LIMIT = 10000
+MEMORY_SIZE = 50000
 REPLAY_SIZE = 32
 STATE_STACK_SIZE = 4
 IMAGE_SIZE = 84
@@ -20,13 +21,13 @@ MOUNTAIN_CLIMBER = 'MountainCar-v0'
 
 def train_agent(env, agent):
     # agent.load_agent()
+    frames = 0
 
     for ep in range(EPISODES):
         state = env.reset()
 
         done = False
         game_reward = 0
-        frames = 0
 
         while not done:
             action = agent.act(state)
@@ -38,14 +39,15 @@ def train_agent(env, agent):
 
             if len(agent.memory) >= OBSERVE_LIMIT:
                 agent.replay(REPLAY_SIZE)
-            if frames % TARGET_UPDATE_FREQ == 0:
-                agent.update_target()
 
             frames += 1
             game_reward += reward
 
         print("Reward: " + str(game_reward) + " with frames: " + str(frames) + " at " + str(datetime.datetime.now())
               + " with epsilon: " + str(agent.epsilon))
+
+        if game_reward == 500:
+            break
 
 
 def use_agent(env, agent):
@@ -65,7 +67,7 @@ def use_agent(env, agent):
 
 env = gym.make(CARTPOLE)
 input_shape = env.observation_space.shape
-agent = DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
+agent = DoubleQLearningAgent(input_shape, env.action_space.n, MEMORY_SIZE)
 
 # Possible learning algorithms:
 # DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
