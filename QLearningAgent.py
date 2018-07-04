@@ -53,7 +53,6 @@ class QLearningAgent:
         model.add(Dense(32, activation='relu'))
         model.add(Dense(self.action_space, activation='linear'))
         model.compile(loss='mse', optimizer='adam')
-        model.summary()
         return model
 
     def _build_image_model(self):
