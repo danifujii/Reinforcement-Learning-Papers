@@ -33,10 +33,10 @@ class Experience:
 
 class QLearningAgent:
     model_name = 'dqn_weights3.h5'
-    target_update_freq = 10000
+    target_update_freq = 500
     discount = 0.99
     epsilon_min = 0.01
-    steps = 0
+    steps = 1
 
     def __init__(self, frames_shape, action_space, memory_size):
         self.frames_shape = frames_shape
