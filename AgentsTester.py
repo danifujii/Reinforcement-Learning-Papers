@@ -4,11 +4,12 @@ import gym
 import numpy
 
 from DoubleQLearningAgent import DoubleQLearningAgent
-from QLearningAgent import Experience
+from PERLearningAgent import PERLearningAgent
+from QLearningAgent import Experience, QLearningAgent
 
 EPISODES = 3000
 TARGET_UPDATE_FREQ = 7500
-OBSERVE_LIMIT = 10000
+OBSERVE_LIMIT = 50000
 MEMORY_SIZE = 50000
 REPLAY_SIZE = 32
 STATE_STACK_SIZE = 4
@@ -19,9 +20,14 @@ CARTPOLE = 'CartPole-v1'
 MOUNTAIN_CLIMBER = 'MountainCar-v0'
 
 
+def solved(rewards):
+    return len(rewards) > 100 and sum(rewards[-100:]) / 100 >= 200
+
+
 def train_agent(env, agent):
     # agent.load_agent()
     frames = 0
+    rewards = []
 
     for ep in range(EPISODES):
         state = env.reset()
@@ -46,7 +52,8 @@ def train_agent(env, agent):
         print("Reward: " + str(game_reward) + " with frames: " + str(frames) + " at " + str(datetime.datetime.now())
               + " with epsilon: " + str(agent.epsilon))
 
-        if game_reward == 500:
+        rewards.append(game_reward)
+        if solved(rewards):
             break
 
 
@@ -67,7 +74,7 @@ def use_agent(env, agent):
 
 env = gym.make(CARTPOLE)
 input_shape = env.observation_space.shape
-agent = DoubleQLearningAgent(input_shape, env.action_space.n, MEMORY_SIZE)
+agent = PERLearningAgent(input_shape, env.action_space.n, MEMORY_SIZE)
 
 # Possible learning algorithms:
 # DoubleQLearningAgent(input_shape, env.action_space.n, OBSERVE_LIMIT)
