@@ -9,11 +9,26 @@ class PERLearningAgent(DoubleQLearningAgent):
     def __init__(self, frames_shape, action_shape, memory_size):
         DoubleQLearningAgent.__init__(self, frames_shape, action_shape, 0)
         self.alpha = 0.6
-        self.epsilon_positive = 0.01    # epsilon used to avoid not visiting states when p(i)=0
+        self.epsilon_positive = 0.01  # epsilon used to avoid not visiting states when p(i)=0
         self.memory = SumTree(memory_size)
 
     def remember(self, experience):
         self.memory.add(self.memory.max_p, experience)
+
+    def replay(self, replay_length):
+        replay_batch, idxs, weights = self.get_batch(replay_length)
+        xs, ys, errors = self.get_targets(replay_batch)
+
+        self.model.fit(xs, ys, batch_size=32, epochs=1, verbose=0, sample_weight=weights)
+        self.update_epsilon()
+        self.steps += 1
+
+        if self.steps % self.target_update_freq == 0:
+            self.update_target()
+
+        # update priorities
+        for i in range(replay_length):
+            self.memory.update(idxs[i], errors[i])
 
     def get_targets(self, replay_batch):
         states = np.array([experience.state for experience in replay_batch])
@@ -39,31 +54,22 @@ class PERLearningAgent(DoubleQLearningAgent):
 
         return states, ys, errors
 
-    def replay(self, replay_length):
-        replay_batch, idxs = self.get_batch(replay_length)
-        xs, ys, errors = self.get_targets(replay_batch)
-
-        # update priorities
-        for i in range(replay_length):
-            self.memory.update(idxs[i], errors[i])
-
-        self.model.fit(xs, ys, batch_size=32, epochs=1, verbose=0)
-        self.steps += 1
-        self.update_epsilon()
-
     def get_batch(self, batch_size):
+        beta = 1 - self.discount
         max_priority = self.memory.total() / batch_size
         batch = []
         idxs = []
+        weights = []
 
         for i in range(batch_size):
             low = max_priority * i
             high = max_priority * (i + 1)
             priority = np.random.uniform(low, high)
             (idx, p, exp) = self.memory.get(priority)
-            if (exp is not None):
+            weight = (len(self.memory) * p) ** (-beta)
+            if exp is not None:
                 batch.append(exp)
                 idxs.append(idx)
-            else: print('None!', priority)
+                weights.append(weight / self.memory.max_p)
 
-        return batch, idxs
+        return batch, idxs, np.array(weights)
