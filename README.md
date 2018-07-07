@@ -6,7 +6,7 @@ I decided to program an agent to learn how to solve Cartpole, using the [OpenAI 
 ## Results
 ![Results in cartpole](graphs/cartpole_results.png)
 
-The graphic above shows the results obtained at Cartpole for each implemented algorithm. The results were obtained using the median of five runs and smoothed with moving average. 
+The graphic above shows the results obtained at Cartpole for each implemented algorithm. The results were obtained using the median of five runs and smoothed with moving average. Each run was finished once the agent averaged more than 200 points of reward in the last 100 episodes.
 
 ## Aknowledgements
 Other than the linked papers, I have to thank Jaromir Janisch for his great [article](https://jaromiru.com/2016/11/07/lets-make-a-dqn-double-learning-and-prioritized-experience-replay/), which helped me a lot. I used his Sum Tree implementation, since it was pretty simple. 
