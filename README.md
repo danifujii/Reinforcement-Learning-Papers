@@ -5,6 +5,7 @@ I decided to program an agent to learn how to solve Cartpole, using the [OpenAI 
 
 ## Results
 ![Results in cartpole](graphs/cartpole_results.png)
+
 The graphic above shows the results obtained at Cartpole for each implemented algorithm. The results were obtained using the median of five runs and smoothed with moving average. 
 
 ## Aknowledgements
