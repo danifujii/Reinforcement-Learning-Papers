@@ -41,12 +41,10 @@ def probs(policy, state):
 
 def update(policy, episode):
     r = 0
-    discounted_rewards = []
     policy_loss = []
     for t in reversed(range(len(episode))):
         episode_t = episode[t]
         r = GAMMA * r + episode_t[2]
-        discounted_rewards.append(r)
         policy_loss.append(-episode_t[3] * r)
 
     policy.optimizer.zero_grad()
