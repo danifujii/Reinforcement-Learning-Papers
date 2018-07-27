@@ -26,6 +26,8 @@ class Network(nn.Module):
         self.output = nn.Linear(32, action_space)
         self.optimizer = optim.Adam(self.parameters())
         self.value_loss = nn.MSELoss()
+        self.input_shape = input_shape
+        self.output_shape = action_space
 
     def forward(self, input):
         x = functional.relu(self.fc1(input))
@@ -45,61 +47,64 @@ def eval_state(policy, state):
 
 
 class Actor(threading.Thread):
-    def __init__(self, env, thread_num):
+    def __init__(self, env, thread_num, common_network):
         threading.Thread.__init__(self)
         self.env = env
         self.train = True
         self.thread_num = thread_num
+        self.network = Network(common_network.input_shape, common_network.output_shape).cuda()
+
+        self.env.reset()
 
     def run(self):
+        t = game_reward = 0
+        done = False
+        episode = []
+        state = self.env.reset()
+
         while self.train:
-            thread_model = copy.deepcopy(network)
-            thread_model.zero_grad()
+            self.network.load_state_dict(network.state_dict())  # Sync weights to global parameters
+            t_start = t
 
-            t = 0
-            state = self.env.reset()
-
-            done = False
-            game_reward = 0
-            episode = []
-
-            while not done:
-                action, logp, value = eval_state(thread_model, state)
+            while not done and t - t_start != T_MAX:
+                action, logp, value = eval_state(self.network, state)
                 state, reward, done, _ = self.env.step(action)
                 episode.append((state, action, reward, logp, value))
                 game_reward += reward
                 t += 1
 
-                if done or t % T_MAX == 0:
-                    self.update(thread_model, episode, done)
+            self.update(episode, done, t_start)
 
-            append_episode_result(game_reward, self.thread_num)
+            if done:
+                # Logging
+                append_episode_result(game_reward, self.thread_num)
 
-    def update(self, thread_model, episode, done):
+                # Clean up
+                t = game_reward = 0
+                done = False
+                episode.clear()
+                state = self.env.reset()
+
+    def update(self, episode, done, t_start):
         r = 0 if done else episode[-1][4]
         policy_loss = []
-        values = []
-        rewards = []
+        value_loss = []
 
-        for state in episode[-T_MAX:]:
+        for t in range(t_start, len(episode) - 1):
+            state = episode[t]
             r = GAMMA * r + state[2]
-            policy_loss.append(-state[3] * r)
-            rewards.append(r)
-            values.append(state[4])
+            value = state[4]
+            policy_loss.append(-state[3] * (r - value))
+            value_loss.append(r - value)
 
-        # Gradient ascent for Policy
-        thread_model.optimizer.zero_grad()
-        policy_loss = torch.cat(policy_loss).sum()
-        policy_loss.backward()
-        thread_model.optimizer.step()
+        if len(policy_loss) == 0:
+            return
 
-        # Gradient descent for Value
-        # thread_model.optimizer.zero_grad()
-        # loss = thread_model.value_loss(torch.Tensor(values), torch.Tensor(rewards))
-        # loss.backward()
-        # thread_model.optimizer.step()
-
-        update_network(thread_model)
+        self.network.optimizer.zero_grad()
+        loss = torch.cat(policy_loss).sum() + torch.stack(value_loss).sum()
+        loss.backward()
+        self.network.optimizer.step()
+        update_network(self.network)
 
 
 def solved():
@@ -109,7 +114,7 @@ def solved():
 def train():
     for i in range(THREADS_NUMBER):
         env = gym.make(CART_POLE)
-        thread = Actor(env, i)
+        thread = Actor(env, i, network)
         thread.start()
         threads.append(thread)
 
