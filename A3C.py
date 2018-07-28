@@ -25,7 +25,6 @@ class Network(nn.Module):
         self.value = nn.Linear(32, 1)
         self.probs = nn.Linear(32, action_space)
 
-        self.optimizer = optim.Adam(self.parameters())
         self.value_loss = nn.MSELoss()
         self.input_shape = input_shape
         self.output_shape = action_space
@@ -92,7 +91,7 @@ class Actor(threading.Thread):
         policy_loss = []
         value_loss = []
 
-        for t in reversed(range(t_start, len(episode))):
+        for t in reversed(range(t_start, len(episode) - 1)):
             state = episode[t]
             r = GAMMA * r + state[2]
             value = state[4]
@@ -102,8 +101,7 @@ class Actor(threading.Thread):
         if len(policy_loss) == 0:
             return
 
-        self.thread_network.optimizer.zero_grad()
-        loss = torch.cat(policy_loss).sum() + torch.stack(value_loss).sum()
+        loss = torch.cat(policy_loss).sum() + torch.stack(value_loss).mean()
         update_network(self.global_network, self.thread_network, loss)
 
 
@@ -129,17 +127,18 @@ def append_episode_result(reward, thread_num):
 
 def update_network(global_network, thread_network, loss):
     network_lock.acquire()
-    global_network.optimizer.zero_grad()
+    shared_optimizer.zero_grad()
     loss.backward()
     for thread_param, global_param in zip(thread_network.parameters(), global_network.parameters()):
         global_param.grad = thread_param.grad
-    global_network.optimizer.step()
+    shared_optimizer.step()
     network_lock.release()
 
 
 rewards = []
 threads = []
 network = Network(INPUT_SPACE, ACTION_SPACE).cuda()
+shared_optimizer = optim.Adam(network.parameters())
 network_lock = threading.Lock()
 train()
 
