@@ -1,9 +1,8 @@
 import threading
-import torch
 from datetime import datetime
 
 import gym
-import copy
+import torch
 import torch.nn.functional as functional
 from torch import nn, optim
 from torch.distributions import Categorical
@@ -23,7 +22,9 @@ class Network(nn.Module):
         super(Network, self).__init__()
         self.fc1 = nn.Linear(input_shape, 32)
         self.fc2 = nn.Linear(32, 32)
-        self.output = nn.Linear(32, action_space)
+        self.value = nn.Linear(32, 1)
+        self.probs = nn.Linear(32, action_space)
+
         self.optimizer = optim.Adam(self.parameters())
         self.value_loss = nn.MSELoss()
         self.input_shape = input_shape
@@ -32,8 +33,8 @@ class Network(nn.Module):
     def forward(self, input):
         x = functional.relu(self.fc1(input))
         x = functional.relu(self.fc2(x))
-        value = self.output(x)
-        probs = functional.sigmoid(value)
+        value = self.value(x)
+        probs = functional.sigmoid(self.probs(x))
         return probs, value
 
 
@@ -43,7 +44,7 @@ def eval_state(policy, state):
     dist = Categorical(probs)
     action = dist.sample()
     log_prob = dist.log_prob(action)
-    return action.item(), log_prob, value[0][action.item()]
+    return action.item(), log_prob, value
 
 
 class Actor(threading.Thread):
@@ -52,7 +53,8 @@ class Actor(threading.Thread):
         self.env = env
         self.train = True
         self.thread_num = thread_num
-        self.network = Network(common_network.input_shape, common_network.output_shape).cuda()
+        self.thread_network = Network(common_network.input_shape, common_network.output_shape).cuda()
+        self.global_network = common_network
 
         self.env.reset()
 
@@ -63,11 +65,11 @@ class Actor(threading.Thread):
         state = self.env.reset()
 
         while self.train:
-            self.network.load_state_dict(network.state_dict())  # Sync weights to global parameters
+            self.thread_network.load_state_dict(self.global_network.state_dict())  # Sync weights to global parameters
             t_start = t
 
             while not done and t - t_start != T_MAX:
-                action, logp, value = eval_state(self.network, state)
+                action, logp, value = eval_state(self.thread_network, state)
                 state, reward, done, _ = self.env.step(action)
                 episode.append((state, action, reward, logp, value))
                 game_reward += reward
@@ -90,21 +92,19 @@ class Actor(threading.Thread):
         policy_loss = []
         value_loss = []
 
-        for t in range(t_start, len(episode) - 1):
+        for t in reversed(range(t_start, len(episode))):
             state = episode[t]
             r = GAMMA * r + state[2]
             value = state[4]
             policy_loss.append(-state[3] * (r - value))
-            value_loss.append(r - value)
+            value_loss.append((r - value) ** 2)
 
         if len(policy_loss) == 0:
             return
 
-        self.network.optimizer.zero_grad()
+        self.thread_network.optimizer.zero_grad()
         loss = torch.cat(policy_loss).sum() + torch.stack(value_loss).sum()
-        loss.backward()
-        self.network.optimizer.step()
-        update_network(self.network)
+        update_network(self.global_network, self.thread_network, loss)
 
 
 def solved():
@@ -127,9 +127,13 @@ def append_episode_result(reward, thread_num):
             t.train = False
 
 
-def update_network(target):
+def update_network(global_network, thread_network, loss):
     network_lock.acquire()
-    network.load_state_dict(target.state_dict())
+    global_network.optimizer.zero_grad()
+    loss.backward()
+    for thread_param, global_param in zip(thread_network.parameters(), global_network.parameters()):
+        global_param.grad = thread_param.grad
+    global_network.optimizer.step()
     network_lock.release()
 
 
